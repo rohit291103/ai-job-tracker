@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+.next/
+out/
+dist/
+build/
+.vercel
+.turbo
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Extension builds
+.plasmo/
+build/chrome-mv3-*
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# OS / editor
+.DS_Store
+.idea/
+*.swp
+
+# Local data — never commit resumes or captured application data
+/data/
+*.sqlite
+*.sqlite3
