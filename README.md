@@ -45,9 +45,15 @@ fallback.
 
 ## Stack
 
-TypeScript end to end so the extension and server share types. Next.js on Vercel, Postgres
-(Supabase), Drizzle for migrations, Plasmo for the extension, Cloudflare Email Routing for inbound
-mail, Claude for classification and extraction.
+TypeScript end to end so the extension and server share types. Next.js on Vercel, Postgres via
+Supabase, Drizzle for migrations, WXT for the extension, and Claude for classification. Email
+ingestion starts as a Google Apps Script in your own account — no domain or inbound mail
+infrastructure needed — with Cloudflare Email Routing as the second adapter if this ever goes
+multi-user.
+
+Each choice is recorded with its reasoning in [ARCHITECTURE.md §10](ARCHITECTURE.md#10-stack),
+alongside an [alternatives considered](ARCHITECTURE.md#11-alternatives-considered) section covering
+scraping, Firebase and n8n — the approaches most tutorials on this use.
 
 ## Build order
 

@@ -305,7 +305,79 @@ there's evidence about what email alone fails to catch.
 
 ## 10. Stack
 
-TypeScript throughout, so extension and server share types. Next.js on Vercel, Postgres via
-Supabase, Drizzle for migrations, Plasmo for the extension (MV3 boilerplate solved), Cloudflare
-Email Routing for inbound mail, Claude for classification and extraction. Nothing exotic — the
-difficulty here is data modeling, not infrastructure.
+Verified against current tooling state in October 2026, not assumed.
+
+| Layer | Choice | Why |
+|---|---|---|
+| Language | TypeScript throughout | Extension and server share types — the capture payload is the same shape on both sides |
+| App | Next.js on Vercel | Dashboard and API in one deploy |
+| Database | Postgres via Supabase | The core problem is relational (§4, §5). Supabase supplies the Firebase conveniences — auth, realtime, storage — without the data model that fights joins |
+| ORM | Drizzle | Types inferred from the schema with no codegen step, readable checked-in SQL migrations, ~7kb for edge runtimes. The current default for greenfield Next.js + Postgres |
+| Extension | **WXT** | See ADR-002 |
+| Email ingest | Apps Script → Cloudflare Email Routing | See ADR-003 |
+| Models | Claude Haiku 4.5 for classification, Opus-tier for tailoring | §7 |
+
+### ADR-002: WXT for the extension, not Plasmo
+
+**Decision:** build the extension with WXT.
+
+**Why.** Plasmo is effectively in maintenance mode as of late 2025 — the framework still works, but it is not being actively developed, and migration posts from teams moving off it are now the common case. WXT is actively maintained, builds substantially faster, produces roughly half the bundle size, and has reliable HMR, which matters because extension development has a slow feedback loop already. It also treats frameworks other than React as first-class, which costs nothing here but removes a future constraint.
+
+This reverses an earlier recommendation of Plasmo in this project's planning, which was based on its MV3 boilerplate being the best-known option. That was true a year ago.
+
+### ADR-003: Apps Script first for ingestion, Cloudflare Email Routing second
+
+**Decision:** phase 1 reads mail with a Google Apps Script running inside the user's own account. The forwarding architecture from ADR-001 is the second adapter behind the same interface, built when the project goes multi-user.
+
+**Why.** ADR-001's reasoning about restricted scopes and CASA is about *distributing* an OAuth app. For a single user it doesn't apply: an Apps Script you own, bound to your own account, needs no verification — you authorize it yourself and click through an unverified-app warning once. A time-based trigger runs a Gmail search and POSTs matches to the API.
+
+That means phase 1 needs **no domain, no DNS, no OAuth app, no inbound mail infrastructure at all.** It is the shortest path to a populated database, which is the whole point of putting ingestion first in the build order.
+
+It does not scale past one user — distributing it would mean publishing a Workspace Add-on with its own review — which is exactly why ADR-001 remains the multi-user design. Both are ingestion adapters producing the same `raw_events` rows, so the switch is additive rather than a rewrite.
+
+### Cloudflare Email Routing: two operational details
+
+Confirmed for when ADR-001's path gets built:
+
+- **Inbound is unlimited and free** on both Workers Free and Paid plans.
+- **There is a hard limit of 200 addresses and 200 routing rules per account**, which would otherwise cap the product at 200 users. The way around it is a **catch-all route** to a single Email Worker that parses the recipient out of the message headers to recover the user token — one rule, unlimited users.
+- **Email Workers count against normal Workers CPU limits**, and complex handlers can exceed them on the free plan. So the Worker stays thin: validate, write the raw message, enqueue. All parsing and classification happens downstream — which is the queue separation §8 calls for anyway.
+
+---
+
+## 11. Alternatives considered
+
+Recorded because these are the approaches most "automate your job search" tutorials use, and the reasons for not choosing them are specific rather than general.
+
+**Scraping job boards (Playwright, Firecrawl, Apify).** Solves *discovery* — finding listings. This project's problem is *tracking* what was already applied to, and that fact exists only in the user's private account state and inbox; no amount of scraping public job pages recovers it. Scraping becomes relevant only if a discovery module is added (§12), where those tools are the right choice.
+
+**Firebase / Firestore.** The data model here is relational by nature: an application folds an event log into a derived status and joins to a company, a thread, a resume version and a JD snapshot (§4, §5). Firestore has no joins, so assembling an application means N+1 reads; per-document pricing punishes read-heavy dashboards; and fuzzy company matching is an awkward query shape. The result would be aggressive denormalization with hand-maintained consistency, which is how merge bugs become unrecoverable.
+
+**n8n / Make for the pipeline.** A genuinely faster way to get email → parse → store running without writing a backend, and a reasonable way to validate that classification works on real mail before committing to code. Not chosen because entity resolution (§4) is awkward to express in a visual workflow and the logic isn't portable, but it is a legitimate shortcut rather than a wrong answer.
+
+**Headless browser automation for capture.** Rejected for LinkedIn and Indeed specifically: both run aggressive bot detection, and automated traffic against them risks the user's account. An extension inside a real browsing session is a human browsing. The extension is also strictly better for this purpose — it rides the existing session passively instead of reproducing authentication.
+
+**Auto-submitting applications.** See §6. Real account risk, and poor conversion because frictionless bulk applying is weak precisely because it is frictionless for everyone.
+
+---
+
+## 12. Resume tailoring via Agent Skills
+
+The one place a model earns its cost rather than saving a few seconds of parsing.
+
+Tailoring a resume against a JD is a packaged, reusable, versionable instruction set — which is what a Skill is. Two properties make this the right shape:
+
+- **The output is a file, not text.** Agent Skills with code execution run in a container with `python-docx` and `pypdf` preinstalled, so the pipeline produces an actual `.docx` or PDF rather than handing back prose to reformat by hand.
+- **It composes with stored state.** The JD snapshot (§5) and the resume version history are already in the database, so tailoring reads structured inputs instead of asking the user to paste anything.
+
+Pipeline: JD snapshot + selected base resume → gap analysis against the JD's stated requirements → rewritten bullets with keyword coverage → rendered file → stored as a new `resume_versions` row linked to the application. The version link is what makes it useful later: when a recruiter replies, the exact document they received is known.
+
+This is the paid-tier feature in §7's cost model.
+
+---
+
+## 13. Out of scope for now
+
+**Job discovery.** Aggregated search across boards is a materially different product with a much larger scraping surface and far more legal exposure. If added later, it belongs as a separate module feeding the same schema, and Firecrawl or Apify are the right tools for it.
+
+**Everything in §8's "what not to build yet."**
