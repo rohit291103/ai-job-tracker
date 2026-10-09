@@ -34,3 +34,6 @@ yarn-error.log*
 /data/
 *.sqlite
 *.sqlite3
+
+# Next.js generated types
+next-env.d.ts
