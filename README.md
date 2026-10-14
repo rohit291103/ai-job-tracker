@@ -5,8 +5,11 @@ spreadsheet, applications are captured automatically — from confirmation email
 browser extension at the moment of submission — and their status is kept current by reading the
 email thread that follows.
 
-**Status: design phase.** No code yet. [ARCHITECTURE.md](ARCHITECTURE.md) is the current state of
-thinking: the decisions made, the reasoning behind them, and the build order.
+**Status: phase 1 built.** Email ingestion, the template matcher, the model fallback, entity
+resolution and a list dashboard are in place and tested; nothing has yet run against a real inbox.
+[SETUP.md](SETUP.md) gets it running in about fifteen minutes.
+[ARCHITECTURE.md](ARCHITECTURE.md) carries the decisions, the reasoning behind each one, and the
+build order.
 
 ## The core problem, and the thing that isn't obvious
 
@@ -57,11 +60,25 @@ scraping, Firebase and n8n — the approaches most tutorials on this use.
 
 ## Build order
 
-1. Email ingestion + classifier + schema — works retroactively against existing mail, so there's
-   useful data on day one
+1. ~~Email ingestion + classifier + schema~~ — done. Works retroactively against existing mail, so
+   there's useful data on day one
 2. Dashboard: list, kanban by status, application detail with full thread
 3. Extension: generic ATS capture (Greenhouse / Lever / Ashby) + manual save
 4. Platform-specific capture for LinkedIn and Indeed
 5. Question bank + autofill
+6. Public portfolio page, once the profile has a job to do beyond being looked at
 
-Step 1 is a weekend and carries roughly half the total value.
+Step 1 carried roughly half the total value.
+
+## The portfolio direction
+
+A natural extension is a shareable candidate page in the shape of [Codolio](https://codolio.com) —
+aggregated GitHub, LeetCode and Codeforces stats, projects, certifications — with this tracker as
+the private feature behind it.
+
+That works, with one inversion: **the public page shares verifiable credentials, never application
+activity.** "247 applications, 4 interviews" is a confession, not a portfolio, and the only honest
+version of that page is one nobody would share. The genuine synergy is elsewhere — the profile
+becomes the source of truth autofill draws from, so it gets maintained because it fills forms
+rather than out of diligence. Recorded with the platform-by-platform feasibility table in
+[ARCHITECTURE.md §13](ARCHITECTURE.md#13-portfolio-the-public-layer).

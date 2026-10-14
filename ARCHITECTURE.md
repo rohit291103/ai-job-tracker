@@ -1,7 +1,7 @@
 # Architecture
 
 Design notes for a personal job-application tracker, with the decisions recorded so the reasoning
-survives. Nothing here is built yet.
+survives. Sections 1–5 and 9's first step are built; the rest is still design.
 
 **Scope:** built for a single user first. A section near the end covers what changes if it ever
 goes multi-user, and which decisions are worth making now to keep that door open.
@@ -349,7 +349,7 @@ Confirmed for when ADR-001's path gets built:
 
 Recorded because these are the approaches most "automate your job search" tutorials use, and the reasons for not choosing them are specific rather than general.
 
-**Scraping job boards (Playwright, Firecrawl, Apify).** Solves *discovery* — finding listings. This project's problem is *tracking* what was already applied to, and that fact exists only in the user's private account state and inbox; no amount of scraping public job pages recovers it. Scraping becomes relevant only if a discovery module is added (§12), where those tools are the right choice.
+**Scraping job boards (Playwright, Firecrawl, Apify).** Solves *discovery* — finding listings. This project's problem is *tracking* what was already applied to, and that fact exists only in the user's private account state and inbox; no amount of scraping public job pages recovers it. Scraping becomes relevant only if a discovery module is added (§14), where those tools are the right choice.
 
 **Firebase / Firestore.** The data model here is relational by nature: an application folds an event log into a derived status and joins to a company, a thread, a resume version and a JD snapshot (§4, §5). Firestore has no joins, so assembling an application means N+1 reads; per-document pricing punishes read-heavy dashboards; and fuzzy company matching is an awkward query shape. The result would be aggressive denormalization with hand-maintained consistency, which is how merge bugs become unrecoverable.
 
@@ -376,7 +376,118 @@ This is the paid-tier feature in §7's cost model.
 
 ---
 
-## 13. Out of scope for now
+## 13. Portfolio: the public layer
+
+The question this answers: can this become a *job-application portfolio* in the shape of
+[Codolio](https://codolio.com) — one shareable page aggregating a candidate's footprint — with the
+tracker as one feature inside it?
+
+Yes, but with one inversion, and the inversion is the whole design.
+
+### ADR-004: The public profile shares credentials, not application activity
+
+**Decision:** the public page renders independently verifiable *credentials*. Application history
+stays private with no visibility flag available on it.
+
+**Why.** Codolio's model works because its inputs are public and verifiable. A LeetCode profile is
+a URL anyone can open; Codolio renders public facts, which is what makes the page credible to a
+reader and tractable to aggregate in the first place.
+
+Application history has the inverse properties. It is private, unverifiable by any third party,
+and unflattering in aggregate. "247 applications, 4 interviews" is not a portfolio, it is a
+confession — the honest version of that page is one nobody would ever share, and the shareable
+version is one nobody should believe. So the public layer cannot be the tracker's data with a
+`visibility` column bolted on. It has to be different data.
+
+The split is by verifiability:
+
+- **Public, opt in per item:** things a reader can independently confirm — GitHub, LeetCode /
+  Codeforces / CodeChef handles and their derived stats, deployed projects, certifications,
+  publications. Every item carries its source URL, so the page is a claim *plus* the way to check
+  it. That is the only kind of portfolio worth linking to.
+- **Private, always:** applications, events, raw email, resume versions, JD snapshots, screening
+  answers, salary figures.
+- **Derived, opt in, default off:** aggregate outcome stats with no company named — "interviewed at
+  6 fintech companies in 2026". Company-level detail never becomes public under any setting,
+  because a public record of where someone was rejected is data that hurts the user and benefits
+  no one.
+
+### Why the combination is stronger than either half alone
+
+The thing Codolio does not have: **the portfolio is the autofill source of truth.**
+
+Every application form asks the same forty fields — GitHub URL, portfolio URL, years of
+experience, notice period, current CTC, work authorization, "why this company". §6's question bank
+is already half of that structure. Fold the two together and the profile stops being a vanity page
+and becomes the input to the feature that saves real time.
+
+That also reverses the retention problem portfolio products have. A coding portfolio gets updated
+when you remember to. A profile that fills your applications gets updated because *not* updating it
+costs you minutes on every application. The shareable page becomes a side effect of maintaining
+something you'd maintain anyway.
+
+### Platform sync: what is actually available
+
+Same durability question as §3's ATS table — which of these is a contract and which is a scrape
+wearing an API's clothes:
+
+| Source | Mechanism | Durability |
+|---|---|---|
+| **GitHub** | Official REST + GraphQL API, documented, authenticated quota is generous | Contract. Safe to build on. |
+| **Codeforces** | Official public API (`user.info`, `user.rating`), anonymous for public data | Documented and stable for years. |
+| **LeetCode** | No official API. `leetcode.com/graphql` serves public profiles unauthenticated, and every wrapper in the ecosystem is built on it | **Undocumented endpoint, not a contract.** Treat it exactly like a DOM selector: expect breakage, version the parser, keep the last good snapshot. |
+| **CodeChef, GeeksforGeeks, HackerRank** | Public profile pages, no API | Scrape. Most fragile, least differentiating. Build last or never. |
+
+Rate limits for the unofficial endpoints are secondhand from community wrappers, not published
+policy — pace conservatively and back off on 429 rather than trusting a number.
+
+**The design consequence is snapshots, not live fetches.** Each sync writes an immutable row
+(platform, handle, fetched_at, raw payload, parsed stats) instead of overwriting a current-stats
+column. Three reasons, each with an analogue already in this system:
+
+1. The public page renders from the last good snapshot, so LeetCode changing its schema degrades to
+   slightly stale numbers rather than a broken page.
+2. The history *is* the feature — rating graphs, streaks and trend lines need it.
+3. Keeping raw payloads means a parser fix can replay, exactly as §5 requires for `raw_events`.
+
+### What changes in what is already built
+
+Nothing in the ingestion pipeline, the classifier or entity resolution. The additions:
+
+- **New tables.** `profiles` (slug, visibility, headline, bio), `profile_links` (platform, handle,
+  verified_at), `platform_snapshots` (immutable, per above), `projects`, `credentials`, and
+  `profile_answers` — which generalizes `question_bank` to cover the stable facts forms ask for,
+  not only per-application screening questions.
+- **The first public surface, which is a genuine security change.** Every RLS policy today assumes
+  a row is readable only by its owner. A public page needs anonymous read on an *explicitly
+  enumerated* column set, for rows where `visibility = 'public'` — never `select *`, because the
+  cost of getting that policy wrong is leaking someone's application history. That belongs in its
+  own migration with its own advisor run, not appended to an unrelated one.
+- **Handle verification.** An unverified handle field makes the page worthless, since anyone can
+  type someone else's LeetCode handle and inherit their stats. The cheapest check that works: the
+  user puts a one-time token in their platform bio, we fetch and compare, then they clear it. Same
+  trick as domain-verification flows, and it needs no OAuth on platforms that do not offer any.
+
+### Build order impact
+
+This is additive rather than a rewrite, but it is roughly the size of everything built so far, and
+it competes directly with §9's remaining steps. Worth being deliberate about which half is which:
+
+- The **tracker** half has no real competitor and is the reason to use this at all.
+- The **portfolio** half already has Codolio, CodersRank and others, and functions as an
+  acquisition surface rather than as the value.
+
+For a single user the portfolio is the lower-value half — you have one GitHub and one LeetCode, and
+you can paste those two links yourself. It starts earning its cost at the point where either
+(a) autofill is live, so the profile has a job to do besides being looked at, or (b) the project
+goes public, where public pages supply the SEO and sharing loop §8 otherwise lacks.
+
+So the ordering: `profile_answers` and autofill first — the overlap between §6 and this section —
+and the public page after it, not before.
+
+---
+
+## 14. Out of scope for now
 
 **Job discovery.** Aggregated search across boards is a materially different product with a much larger scraping surface and far more legal exposure. If added later, it belongs as a separate module feeding the same schema, and Firecrawl or Apify are the right tools for it.
 
