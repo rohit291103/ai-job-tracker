@@ -376,114 +376,134 @@ This is the paid-tier feature in §7's cost model.
 
 ---
 
-## 13. Portfolio: the public layer
+## 13. The aggregated view
 
-The question this answers: can this become a *job-application portfolio* in the shape of
-[Codolio](https://codolio.com) — one shareable page aggregating a candidate's footprint — with the
-tracker as one feature inside it?
+The question this answers: can this become a Codolio-shaped command center — one page aggregating
+a candidate's whole footprint, with rich stats and history — rather than a list of applications?
 
-Yes, but with one inversion, and the inversion is the whole design.
+Yes, and it is a better fit than the public version of the same idea.
 
-### ADR-004: The public profile shares credentials, not application activity
+### ADR-004: Aggregate privately; there is no public profile
 
-**Decision:** the public page renders independently verifiable *credentials*. Application history
-stays private with no visibility flag available on it.
+**Decision:** the aggregated view is private to its owner. No public page, no shareable slug, no
+anonymous read path.
 
-**Why.** Codolio's model works because its inputs are public and verifiable. A LeetCode profile is
-a URL anyone can open; Codolio renders public facts, which is what makes the page credible to a
-reader and tractable to aggregate in the first place.
+**Why.** An earlier draft of this section proposed a public profile and split the data by
+verifiability — credentials public, application history private — because a public page can only
+carry claims a reader can independently check, and "247 applications, 4 interviews" is a
+confession rather than a portfolio.
 
-Application history has the inverse properties. It is private, unverifiable by any third party,
-and unflattering in aggregate. "247 applications, 4 interviews" is not a portfolio, it is a
-confession — the honest version of that page is one nobody would ever share, and the shareable
-version is one nobody should believe. So the public layer cannot be the tracker's data with a
-`visibility` column bolted on. It has to be different data.
+Private aggregation dissolves that whole problem. Your own data does not need to be verifiable to
+you, and it does not need to be flattering: 247 applications and 4 interviews is precisely the
+number you need to see, because it says the resume is the problem and not the interviewing. The
+constraint that replaces verifiability is narrower and more useful:
 
-The split is by verifiability:
+> Every number on the page has to be one that would change a decision.
 
-- **Public, opt in per item:** things a reader can independently confirm — GitHub, LeetCode /
-  Codeforces / CodeChef handles and their derived stats, deployed projects, certifications,
-  publications. Every item carries its source URL, so the page is a claim *plus* the way to check
-  it. That is the only kind of portfolio worth linking to.
-- **Private, always:** applications, events, raw email, resume versions, JD snapshots, screening
-  answers, salary figures.
-- **Derived, opt in, default off:** aggregate outcome stats with no company named — "interviewed at
-  6 fintech companies in 2026". Company-level detail never becomes public under any setting,
-  because a public record of where someone was rejected is data that hurts the user and benefits
-  no one.
+A count that only makes you feel something is noise. A conversion rate that tells you which stage
+to work on is the product.
 
-### Why the combination is stronger than either half alone
+Three consequences worth stating, because they are all savings:
 
-The thing Codolio does not have: **the portfolio is the autofill source of truth.**
+- **No RLS change.** §13's earlier draft needed anonymous read on an explicitly enumerated column
+  set, in its own migration, with its own advisor run — the highest-risk change in the project,
+  since getting it wrong leaks an application history. Private aggregation needs none of it. The
+  existing owner-only policies are already correct.
+- **No handle verification.** Nobody is claiming someone else's LeetCode stats to impress a reader.
+  The user can type their own handle and be trusted about it.
+- **Platform sync fragility stops being load-bearing.** A broken LeetCode parser means a stale
+  number on your own dashboard, not a broken public page that someone is looking at right now.
 
-Every application form asks the same forty fields — GitHub URL, portfolio URL, years of
-experience, notice period, current CTC, work authorization, "why this company". §6's question bank
-is already half of that structure. Fold the two together and the profile stops being a vanity page
-and becomes the input to the feature that saves real time.
+### The hard part is not the charts, it is the silence
 
-That also reverses the retention problem portfolio products have. A coding portfolio gets updated
-when you remember to. A profile that fills your applications gets updated because *not* updating it
-costs you minutes on every application. The shareable page becomes a side effect of maintaining
-something you'd maintain anyway.
+Email-derived capture has a specific bias, and it determines what the aggregated view can honestly
+claim. Rejections, interview invites and recruiter outreach all arrive as mail, so they are
+observed well. **Silence arrives as nothing.** It is the most common outcome in a job search and
+the one with no event to key on.
+
+This shows up as a concrete gap in what is already built: `ghosted` exists in the
+`application_status` enum and in the dashboard's status list, but **nothing can set it.** There is
+deliberately no `ghosted` event type — silence is not an event — so `status_for_event` has no
+mapping for it and the status trigger, which only fires on event insert, can never reach it.
+
+The fix is not to add an event or a cron job. **Ghosting is a derived predicate, not a stored
+status:**
+
+```sql
+-- conceptually: no reply in N days while still in an early stage
+current_status in ('applied', 'acknowledged')
+  and now() - (select max(occurred_at) from events e
+                where e.application_id = a.id) > interval 'N days'
+```
+
+Evaluated at read time, because it changes with the passage of time rather than with an event. A
+stored column would need a scheduled job to stay true and would be wrong between runs — the same
+reasoning as §5's rule that `current_status` is derived and never written directly. The threshold
+belongs in user settings, not in the schema; two weeks is a reasonable default and nothing about
+the design depends on the number.
+
+This is also why the funnel has to be drawn from the event log rather than from `current_status`.
+An application that was rejected after an interview contributed to the interview stage, and the
+current status has forgotten that. The event log has not.
+
+### What the aggregated view shows, and the decision each number changes
+
+| View | Shows | Decision it changes |
+|---|---|---|
+| **Stage funnel** | Applied → acknowledged → screening → interview → offer, with conversion at each step, drawn from events not current status | Where to spend effort. Dying at *applied* is a resume and targeting problem; dying at *screening* is an interview problem. These have nothing to do with each other. |
+| **Source breakdown** | Conversion by capture source, ATS and board — LinkedIn Easy Apply vs. direct vs. referral | Where to apply. 0 interviews from 80 Easy Applies against 2 from 3 referrals is a strategy, not a statistic. |
+| **Response-time distribution** | Median days to first response, by company and by ATS | When to follow up, and when to write one off. Needs the ghosting predicate above. |
+| **Activity heatmap** | Applications per day, Codolio's contribution-graph shape | Honest effort signal. Mostly useful for catching the weeks that quietly went to zero. |
+| **Coding-profile progress** | Synced LeetCode / Codeforces / GitHub stats and history | Whether prep is keeping pace with applications. These belong on one page because they are one project, and the sync is read-only and private. |
+| **Needs review** | Mail that matched no template and that the model declined to classify | Already built. The feedback loop that keeps everything above trustworthy. |
+
+The last row is the one that makes the rest honest: every chart here is downstream of
+classification, so an uninspected pile of unparsed mail silently biases all of them.
 
 ### Platform sync: what is actually available
 
-Same durability question as §3's ATS table — which of these is a contract and which is a scrape
-wearing an API's clothes:
+Unchanged by the private framing, since the fragility is the same — only the stakes drop. Same
+durability question as §3's ATS table: which of these is a contract and which is a scrape wearing
+an API's clothes.
 
 | Source | Mechanism | Durability |
 |---|---|---|
 | **GitHub** | Official REST + GraphQL API, documented, authenticated quota is generous | Contract. Safe to build on. |
 | **Codeforces** | Official public API (`user.info`, `user.rating`), anonymous for public data | Documented and stable for years. |
-| **LeetCode** | No official API. `leetcode.com/graphql` serves public profiles unauthenticated, and every wrapper in the ecosystem is built on it | **Undocumented endpoint, not a contract.** Treat it exactly like a DOM selector: expect breakage, version the parser, keep the last good snapshot. |
+| **LeetCode** | No official API. `leetcode.com/graphql` serves public profiles unauthenticated, and every wrapper in the ecosystem is built on it | **Undocumented endpoint, not a contract.** Treat it like a DOM selector: expect breakage, version the parser, keep the last good snapshot. |
 | **CodeChef, GeeksforGeeks, HackerRank** | Public profile pages, no API | Scrape. Most fragile, least differentiating. Build last or never. |
 
 Rate limits for the unofficial endpoints are secondhand from community wrappers, not published
 policy — pace conservatively and back off on 429 rather than trusting a number.
 
-**The design consequence is snapshots, not live fetches.** Each sync writes an immutable row
-(platform, handle, fetched_at, raw payload, parsed stats) instead of overwriting a current-stats
-column. Three reasons, each with an analogue already in this system:
-
-1. The public page renders from the last good snapshot, so LeetCode changing its schema degrades to
-   slightly stale numbers rather than a broken page.
-2. The history *is* the feature — rating graphs, streaks and trend lines need it.
-3. Keeping raw payloads means a parser fix can replay, exactly as §5 requires for `raw_events`.
+**Snapshots, not live fetches.** Each sync writes an immutable row (platform, handle, fetched_at,
+raw payload, parsed stats) instead of overwriting a current-stats column. The page renders from the
+last good snapshot, so an upstream schema change degrades to a stale number rather than a broken
+view; the history is itself the feature, since rating graphs and streaks need it; and keeping raw
+payloads means a parser fix can replay, exactly as §5 requires for `raw_events`.
 
 ### What changes in what is already built
 
-Nothing in the ingestion pipeline, the classifier or entity resolution. The additions:
+Nothing in ingestion, classification or entity resolution. The additions:
 
-- **New tables.** `profiles` (slug, visibility, headline, bio), `profile_links` (platform, handle,
-  verified_at), `platform_snapshots` (immutable, per above), `projects`, `credentials`, and
-  `profile_answers` — which generalizes `question_bank` to cover the stable facts forms ask for,
-  not only per-application screening questions.
-- **The first public surface, which is a genuine security change.** Every RLS policy today assumes
-  a row is readable only by its owner. A public page needs anonymous read on an *explicitly
-  enumerated* column set, for rows where `visibility = 'public'` — never `select *`, because the
-  cost of getting that policy wrong is leaking someone's application history. That belongs in its
-  own migration with its own advisor run, not appended to an unrelated one.
-- **Handle verification.** An unverified handle field makes the page worthless, since anyone can
-  type someone else's LeetCode handle and inherit their stats. The cheapest check that works: the
-  user puts a one-time token in their platform bio, we fetch and compare, then they clear it. Same
-  trick as domain-verification flows, and it needs no OAuth on platforms that do not offer any.
+- **A ghosting predicate and a settings row to hold its threshold.** Smallest change, largest
+  effect on the funnel's honesty.
+- **Aggregate queries over the event log**, not over `current_status`, for the reason above.
+- **New tables for the profile side:** `profile_links` (platform, handle), `platform_snapshots`
+  (immutable, per above), and `profile_answers` — which generalizes `question_bank` to cover the
+  stable facts forms ask for, not only per-application screening questions. That table is the
+  overlap between this section and §6: the same stored answers that fill a form are the profile.
+- **No new security surface.** Everything stays behind the existing owner-scoped policies.
 
 ### Build order impact
 
-This is additive rather than a rewrite, but it is roughly the size of everything built so far, and
-it competes directly with §9's remaining steps. Worth being deliberate about which half is which:
+Much cheaper than the public version, and it front-loads the useful part. The funnel, the source
+breakdown and the ghosting predicate are queries over data phase 1 already collects — they need no
+new ingestion at all, so they can land as soon as there is a populated database. The profile sync
+is a separate, independent slice that can wait.
 
-- The **tracker** half has no real competitor and is the reason to use this at all.
-- The **portfolio** half already has Codolio, CodersRank and others, and functions as an
-  acquisition surface rather than as the value.
-
-For a single user the portfolio is the lower-value half — you have one GitHub and one LeetCode, and
-you can paste those two links yourself. It starts earning its cost at the point where either
-(a) autofill is live, so the profile has a job to do besides being looked at, or (b) the project
-goes public, where public pages supply the SEO and sharing loop §8 otherwise lacks.
-
-So the ordering: `profile_answers` and autofill first — the overlap between §6 and this section —
-and the public page after it, not before.
+Ordering: ghosting predicate and funnel first, since they read existing data; then
+`profile_answers` and autofill, which share a table; then platform sync.
 
 ---
 

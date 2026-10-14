@@ -66,19 +66,20 @@ scraping, Firebase and n8n — the approaches most tutorials on this use.
 3. Extension: generic ATS capture (Greenhouse / Lever / Ashby) + manual save
 4. Platform-specific capture for LinkedIn and Indeed
 5. Question bank + autofill
-6. Public portfolio page, once the profile has a job to do beyond being looked at
+6. Aggregated insights: funnel, response times, synced coding-profile progress
 
 Step 1 carried roughly half the total value.
 
-## The portfolio direction
+## The aggregated view
 
-A natural extension is a shareable candidate page in the shape of [Codolio](https://codolio.com) —
-aggregated GitHub, LeetCode and Codeforces stats, projects, certifications — with this tracker as
-the private feature behind it.
+Beyond the list, the direction is a Codolio-shaped command center — funnel conversion, response
+times, activity heatmap, synced LeetCode / Codeforces / GitHub progress — **private to its owner,
+with no public page.** Your own data doesn't need to be flattering: 247 applications and 4
+interviews is exactly the number worth seeing, because it says the resume is the problem and not
+the interviewing. One rule keeps it from becoming a wall of vanity metrics: every number on the
+page has to be one that would change a decision.
 
-That works, with one inversion: **the public page shares verifiable credentials, never application
-activity.** "247 applications, 4 interviews" is a confession, not a portfolio, and the only honest
-version of that page is one nobody would share. The genuine synergy is elsewhere — the profile
-becomes the source of truth autofill draws from, so it gets maintained because it fills forms
-rather than out of diligence. Recorded with the platform-by-platform feasibility table in
-[ARCHITECTURE.md §13](ARCHITECTURE.md#13-portfolio-the-public-layer).
+The hard part isn't the charts, it's the silence. Email capture observes rejections and invitations
+well and observes *no reply* as nothing at all — so ghosting has to be a predicate evaluated at
+read time, not a stored status. Recorded with the per-platform sync feasibility table in
+[ARCHITECTURE.md §13](ARCHITECTURE.md#13-the-aggregated-view).
