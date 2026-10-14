@@ -55,6 +55,12 @@ export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull().unique(),
   inboundToken: text("inbound_token").notNull().unique(),
+  /**
+   * Days of silence after which an early-stage application reads as ghosted.
+   * Applied at read time (src/lib/insights.ts), never stored on the
+   * application — silence is not an event, so no trigger can see it.
+   */
+  ghostAfterDays: integer("ghost_after_days").notNull().default(14),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

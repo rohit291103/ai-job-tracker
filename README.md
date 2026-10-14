@@ -5,8 +5,9 @@ spreadsheet, applications are captured automatically — from confirmation email
 browser extension at the moment of submission — and their status is kept current by reading the
 email thread that follows.
 
-**Status: phase 1 built.** Email ingestion, the template matcher, the model fallback, entity
-resolution and a list dashboard are in place and tested; nothing has yet run against a real inbox.
+**Status: phase 1 built, plus insights.** Email ingestion, the template matcher, the model
+fallback, entity resolution, a list dashboard and a funnel/conversion view are in place and tested;
+nothing has yet run against a real inbox.
 [SETUP.md](SETUP.md) gets it running in about fifteen minutes.
 [ARCHITECTURE.md](ARCHITECTURE.md) carries the decisions, the reasoning behind each one, and the
 build order.
@@ -66,7 +67,8 @@ scraping, Firebase and n8n — the approaches most tutorials on this use.
 3. Extension: generic ATS capture (Greenhouse / Lever / Ashby) + manual save
 4. Platform-specific capture for LinkedIn and Indeed
 5. Question bank + autofill
-6. Aggregated insights: funnel, response times, synced coding-profile progress
+6. ~~Insights: funnel, response times, conversion by source~~ — done. Activity heatmap and
+   coding-profile sync still open
 
 Step 1 carried roughly half the total value.
 

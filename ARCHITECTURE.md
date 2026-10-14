@@ -505,6 +505,13 @@ is a separate, independent slice that can wait.
 Ordering: ghosting predicate and funnel first, since they read existing data; then
 `profile_answers` and autofill, which share a table; then platform sync.
 
+**Built so far:** the ghosting predicate (`src/lib/insights.ts`, threshold on `users.ghost_after_days`,
+default 14 days), the stage funnel, response-time distribution and conversion by source, all at
+`/insights`. The list view resolves status through the same predicate so the two pages agree. The
+funnel math is pure and unit-tested; the SQL that feeds it is verified to run against the live
+schema but has not yet run against real data. Still open from this section: the activity heatmap,
+`profile_answers`, and platform sync.
+
 ---
 
 ## 14. Out of scope for now

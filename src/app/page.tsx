@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { applications, companies, events, rawEvents } from "@/db/schema";
+import { applications, companies, events, rawEvents, users } from "@/db/schema";
+import { effectiveStatus } from "@/lib/insights";
 
 // Always rendered per-request: this reads live data and must not be cached at
 // build time.
@@ -30,6 +32,7 @@ async function load(userId: string) {
       company: companies.name,
       companyDomain: companies.rootDomain,
       eventCount: sql<number>`(select count(*) from ${events} e where e.application_id = ${applications.id})`,
+      lastEventAt: sql<Date | null>`(select max(e.occurred_at) from ${events} e where e.application_id = ${applications.id})`,
     })
     .from(applications)
     .leftJoin(companies, eq(applications.companyId, companies.id))
@@ -42,7 +45,27 @@ async function load(userId: string) {
     .from(rawEvents)
     .where(sql`${rawEvents.userId} = ${userId} and ${rawEvents.parseError} is not null`);
 
-  return { rows, needsReview: Number(needsReview[0]?.count ?? 0) };
+  const settings = await db
+    .select({ ghostAfterDays: users.ghostAfterDays })
+    .from(users)
+    .where(eq(users.id, userId));
+
+  const now = new Date();
+
+  return {
+    // Resolved here rather than read from current_status, so the list agrees
+    // with /insights. Silence produces no event, so the status trigger cannot
+    // see it — see ARCHITECTURE.md section 13.
+    rows: rows.map((r) => ({
+      ...r,
+      status: effectiveStatus(
+        { currentStatus: r.status, lastEventAt: r.lastEventAt, appliedAt: r.appliedAt },
+        settings[0]?.ghostAfterDays ?? 14,
+        now,
+      ),
+    })),
+    needsReview: Number(needsReview[0]?.count ?? 0),
+  };
 }
 
 export default async function Page() {
@@ -69,6 +92,9 @@ export default async function Page() {
 
   return (
     <main style={{ maxWidth: 1000, margin: "0 auto", padding: "40px 16px 80px" }}>
+      <nav style={{ marginBottom: 20, fontSize: 13 }}>
+        <Link href="/insights">Insights →</Link>
+      </nav>
       <header style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 20, margin: "0 0 6px", letterSpacing: "-0.01em" }}>Job Tracker</h1>
         <p style={{ color: "var(--muted)", margin: 0 }}>
