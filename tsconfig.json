@@ -38,6 +38,10 @@
   ],
   "exclude": [
     "node_modules",
-    "apps-script"
+    "apps-script",
+    "extension",
+    ".wxt",
+    ".output",
+    "wxt.config.ts"
   ]
 }

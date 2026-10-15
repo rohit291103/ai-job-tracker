@@ -1,20 +1,9 @@
-import { timingSafeEqual } from "node:crypto";
+import { authorized } from "@/lib/auth";
 import { ingestEmail, type IngestResult } from "@/lib/pipeline";
 import type { InboundEmail } from "@/lib/templates";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-function authorized(req: Request): boolean {
-  const secret = process.env.INGEST_SECRET;
-  if (!secret) return false;
-  const header = req.headers.get("authorization") ?? "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
-  const a = Buffer.from(token);
-  const b = Buffer.from(secret);
-  // timingSafeEqual throws on length mismatch, so check that separately.
-  return a.length === b.length && timingSafeEqual(a, b);
-}
 
 function isInboundEmail(v: unknown): v is InboundEmail {
   if (typeof v !== "object" || v === null) return false;

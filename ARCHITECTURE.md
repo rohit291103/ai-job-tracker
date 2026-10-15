@@ -150,6 +150,25 @@ fired. Roughly ten minutes per platform, and the result is far more durable than
 content script read the rendered list while the user scrolls it themselves — one-time, in their own
 session, no automated traffic.
 
+**Built so far.** Generic capture for Greenhouse, Lever and Ashby, plus a manual "save this page"
+button that works anywhere. Structure: an unlisted script patches `fetch` and `XMLHttpRequest` in
+the page context, an isolated-world content script injects it and relays what it reports, and the
+background worker POSTs to `/api/capture`. WXT recommends `injectScript` over a `world: "MAIN"`
+content script, because a MAIN-world script cannot reach the extension APIs — the relay pair is
+needed either way.
+
+Two things are deliberately narrow. The extension reports only *that* a submission happened plus
+its URL and method; it never reads the request body, which would mean handling names, addresses and
+screening answers for no gain, since the server derives what it needs from page metadata. And
+automatic capture is confined to three hosts, with the manual button relying on `activeTab` — so
+broad page access only ever happens on an explicit click.
+
+**What is unproven:** `isSubmitEndpoint` is a heuristic and has not been checked against a real
+submission on any of the three platforms. The ten minutes of DevTools work described above is
+exactly what closes that gap, and until it is done the manual button is the reliable path. A false
+positive is cheap here for a structural reason: the same application also arrives by confirmation
+email, so entity resolution collapses the pair rather than inventing a second record.
+
 **On bot detection.** Indeed in particular runs aggressive detection (Cloudflare plus their own
 fingerprinting). An extension acting inside a real browsing session is a human browsing; a headless
 automation script hitting the same endpoints is not, and will be blocked. Stay in the extension.

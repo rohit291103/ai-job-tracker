@@ -12,11 +12,16 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "ext:dev": "wxt",
+    "ext:build": "wxt build",
+    "ext:zip": "wxt zip",
+    "ext:typecheck": "wxt prepare && tsc -p extension --noEmit",
+    "postinstall": "wxt prepare"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.132.1",
-    "drizzle-orm": "^0.44.0",
+    "drizzle-orm": "^0.45.4",
     "next": "^15.5.0",
     "postgres": "^3.4.5",
     "react": "^19.1.0",
@@ -28,6 +33,7 @@
     "@types/react": "^19.1.0",
     "drizzle-kit": "^0.31.0",
     "typescript": "^5.7.0",
-    "vitest": "^3.0.0"
+    "vitest": "^3.0.0",
+    "wxt": "^0.21.4"
   }
 }

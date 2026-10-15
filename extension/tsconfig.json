@@ -1,0 +1,20 @@
+{
+  "extends": "../.wxt/tsconfig.json",
+  "include": [
+    "../.wxt/wxt.d.ts",
+    "**/*.ts",
+    "../src/lib/capture.ts"
+  ],
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "paths": {
+      "@shared/*": [
+        "../src/lib/*"
+      ],
+      "@/*": [
+        "./*"
+      ]
+    }
+  }
+}

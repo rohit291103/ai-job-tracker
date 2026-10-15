@@ -91,10 +91,63 @@ replaying is always possible — nothing is lost.
 shape of ATS mail, not measured against a real corpus. Your inbox is the first
 real test of them.
 
+## 8. Install the browser extension
+
+Optional, and separate from everything above — email ingestion works without
+it. What it adds is the metadata email can't carry: the job description text and
+the exact posting URL, captured at the moment you submit.
+
+```sh
+npm run ext:build      # writes .output/chrome-mv3
+```
+
+Then in Chrome: `chrome://extensions` → enable **Developer mode** →
+**Load unpacked** → select `.output/chrome-mv3`. Use `npm run ext:dev` instead
+if you want it to reload as you edit.
+
+Open the extension's popup and fill in **Settings**:
+
+- **Server URL** — the same public URL from step 5, with no trailing path.
+- **Ingest token** — your `INGEST_SECRET`.
+
+Two ways it captures:
+
+- **Automatically**, on Greenhouse, Lever and Ashby. The extension watches for
+  the submit request and records the application when it succeeds.
+- **Manually**, with **Save this page** — works on any site, including Workday
+  and company career pages. Use this one on anything that isn't those three.
+
+**Treat automatic capture as unproven for now.** The submit endpoints are
+matched by a documented heuristic that has never been checked against a real
+submission on any of the three platforms — see the header comment in
+[src/lib/capture.ts](src/lib/capture.ts). After your first real application
+through one of them, confirm it landed:
+
+```sql
+select channel, payload ->> 'trigger' as trigger, payload ->> 'url' as url,
+       parse_error, application_id
+  from raw_events
+ where channel = 'extension'
+ order by received_at desc
+ limit 20;
+```
+
+Nothing there means interception didn't fire. The reliable fix is ten minutes
+with DevTools → Network → submit an application → read which POST actually
+carries it, then tighten `isSubmitEndpoint`. Until then the manual button is the
+dependable path, and the confirmation email still catches the application either
+way.
+
+The popup also shows the result of the last capture, so a failure is visible
+rather than silent.
+
 ## What is not built yet
 
-- **Browser extension** (build order steps 3–4). Email alone won't capture the
-  JD text, which resume version you sent, or your screening answers.
+- **Platform capture for LinkedIn and Indeed** (build order step 4). Their
+  interceptors stay feature-flagged and out of any distributed build
+  ([§8](ARCHITECTURE.md#8-if-this-ever-goes-multi-user)).
+- **Autofill and the question bank** (build order step 5). The extension
+  captures today; it does not yet fill anything in.
 - **Application detail view.** The dashboard is a list; the stitched email
   thread per application isn't rendered yet.
 - **Database-level tests.** The append-only constraint and the status-derivation

@@ -5,9 +5,9 @@ spreadsheet, applications are captured automatically — from confirmation email
 browser extension at the moment of submission — and their status is kept current by reading the
 email thread that follows.
 
-**Status: phase 1 built, plus insights.** Email ingestion, the template matcher, the model
-fallback, entity resolution, a list dashboard and a funnel/conversion view are in place and tested;
-nothing has yet run against a real inbox.
+**Status: build order steps 1–3 and 6 done.** Email ingestion, the template matcher, the model
+fallback, entity resolution, a list dashboard, a funnel/conversion view and the capture extension
+are in place and tested; nothing has yet run against a real inbox or a real submission.
 [SETUP.md](SETUP.md) gets it running in about fifteen minutes.
 [ARCHITECTURE.md](ARCHITECTURE.md) carries the decisions, the reasoning behind each one, and the
 build order.
@@ -64,7 +64,8 @@ scraping, Firebase and n8n — the approaches most tutorials on this use.
 1. ~~Email ingestion + classifier + schema~~ — done. Works retroactively against existing mail, so
    there's useful data on day one
 2. Dashboard: list, kanban by status, application detail with full thread
-3. Extension: generic ATS capture (Greenhouse / Lever / Ashby) + manual save
+3. ~~Extension: generic ATS capture (Greenhouse / Lever / Ashby) + manual save~~ — done,
+   though automatic interception is still unproven against a real submission
 4. Platform-specific capture for LinkedIn and Indeed
 5. Question bank + autofill
 6. ~~Insights: funnel, response times, conversion by source~~ — done. Activity heatmap and

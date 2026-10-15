@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Job Tracker</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --line: #e6e4e0;
+        --muted: #6f6b66;
+        --accent: #3a5bbf;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root { --line: #2f2f35; --muted: #9a958e; --accent: #8ca4f0; }
+      }
+      body {
+        width: 300px;
+        margin: 0;
+        padding: 14px;
+        font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, sans-serif;
+      }
+      h1 { font-size: 13px; margin: 0 0 10px; }
+      button {
+        width: 100%;
+        padding: 8px;
+        font: inherit;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--accent);
+        color: #fff;
+        cursor: pointer;
+      }
+      button:disabled { opacity: 0.6; cursor: default; }
+      label { display: block; margin-top: 10px; color: var(--muted); font-size: 11px; }
+      input {
+        width: 100%;
+        padding: 6px;
+        font: inherit;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        background: transparent;
+        color: inherit;
+      }
+      #status { margin: 10px 0 0; color: var(--muted); min-height: 2.6em; }
+      #status.error { color: #c0392b; }
+      details { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
+      summary { color: var(--muted); cursor: pointer; font-size: 11px; }
+    </style>
+  </head>
+  <body>
+    <h1>Job Tracker</h1>
+    <button id="save">Save this page</button>
+    <p id="status"></p>
+    <details id="settings">
+      <summary>Settings</summary>
+      <label for="apiBase">Server URL</label>
+      <input id="apiBase" type="url" placeholder="https://tracker.example.com" />
+      <label for="token">Ingest token</label>
+      <input id="token" type="password" placeholder="INGEST_SECRET" />
+      <label></label>
+      <button id="saveSettings">Save settings</button>
+    </details>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

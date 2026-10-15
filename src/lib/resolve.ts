@@ -83,6 +83,14 @@ export async function resolveCompany(input: {
  * Tier 3 — company alone, most recently updated application that is still
  * open. Only used when the company has exactly one open application, since
  * picking between several would be a guess.
+ *
+ * `allowSingleOpenFallback` turns tier 3 off, and extension captures must turn
+ * it off. Tier 3 exists for a follow-up message that is known to belong to some
+ * existing application; a capture is the opposite — it is a fresh submission,
+ * and the right answer when nothing matches is a new row. Left on, applying to
+ * a second role at a company you already have an open application with would
+ * silently merge the two, because the titles differ so tier 2 misses and tier 3
+ * then finds exactly one open application and takes it.
  */
 export async function resolveApplication(input: {
   userId: string;
@@ -90,8 +98,10 @@ export async function resolveApplication(input: {
   companyId: string | null;
   title: string | null;
   occurredAt: Date;
+  allowSingleOpenFallback?: boolean;
 }): Promise<{ applicationId: string; matchedBy: string } | null> {
   const { userId, threadId, companyId, title, occurredAt } = input;
+  const allowSingleOpenFallback = input.allowSingleOpenFallback ?? true;
 
   if (threadId) {
     const byThread = await db
@@ -133,6 +143,8 @@ export async function resolveApplication(input: {
       .limit(1);
     if (byTitle[0]) return { applicationId: byTitle[0].id, matchedBy: "company+title+window" };
   }
+
+  if (!allowSingleOpenFallback) return null;
 
   const open = await db
     .select({ id: applications.id })
